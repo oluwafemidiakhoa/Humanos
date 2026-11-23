@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from humanos.core import Store, evaluate, verify_source
+from humanos.core import Store, verify_source
 
 
 class CoreTests(unittest.TestCase):
