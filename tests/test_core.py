@@ -1,3 +1,4 @@
+import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,6 +54,26 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(self.store.run_queued()["evaluated"], 0)
         reopened = Store(self.store.path)
         self.assertEqual(reopened.get_candidate(candidate["id"])["state"], "review")
+
+    def test_sqlite_connection_closed_after_context(self):
+        """Regression: Windows must be able to remove a completed test database."""
+        from unittest.mock import patch
+
+        real_connect = sqlite3.connect
+        opened = []
+
+        def tracked_connect(*args, **kwargs):
+            conn = real_connect(*args, **kwargs)
+            opened.append(conn)
+            return conn
+
+        with patch("humanos.core.sqlite3.connect", side_effect=tracked_connect):
+            self.store.list_goals()
+            self.store.create_goal("Another goal", ["opportunity"])
+        self.assertGreaterEqual(len(opened), 2)
+        for conn in opened:
+            with self.assertRaises(sqlite3.ProgrammingError):
+                conn.execute("SELECT 1")
 
     def test_nonexistent_goal_rejected(self):
         with self.assertRaises(LookupError):
