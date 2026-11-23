@@ -5,6 +5,7 @@ import json
 import sqlite3
 import threading
 import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
@@ -79,11 +80,20 @@ class Store:
                 );
             """)
 
+    @contextmanager
     def _connect(self):
+        """Own the complete connection lifecycle, including Windows file-handle release.
+
+        sqlite3.Connection.__exit__ commits or rolls back but does not close the handle.
+        """
         con = sqlite3.connect(self.path, timeout=10)
-        con.row_factory = sqlite3.Row
-        con.execute("PRAGMA foreign_keys=ON")
-        return con
+        try:
+            con.row_factory = sqlite3.Row
+            con.execute("PRAGMA foreign_keys=ON")
+            with con:
+                yield con
+        finally:
+            con.close()
 
     def _event(self, con, entity_id: str, kind: str, details: dict):
         con.execute(
